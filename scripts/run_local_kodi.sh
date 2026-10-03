@@ -150,6 +150,21 @@ echo "Starting Kodi (profile ${KODI_HOME}, JSON-RPC :${PORT})..."
 KODI_PID=$!
 
 cleanup() {
+  # Killing Kodi while InputStreamAdaptive is still playing segfaults it and
+  # leaves a crashlog that looks like a bug in the plugin. Stop playback and
+  # let Kodi shut itself down first.
+  curl -s -m 5 -X POST -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"Player.Stop","params":{"playerid":1}}' \
+    "http://127.0.0.1:${PORT}/jsonrpc" >/dev/null 2>&1 || true
+  curl -s -m 5 -X POST -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"Application.Quit"}' \
+    "http://127.0.0.1:${PORT}/jsonrpc" >/dev/null 2>&1 || true
+
+  for _ in $(seq 1 20); do
+    kill -0 "$KODI_PID" 2>/dev/null || break
+    sleep 0.5
+  done
+
   kill "$KODI_PID" 2>/dev/null || true
   [ -n "${XVFB_PID:-}" ] && kill "$XVFB_PID" 2>/dev/null || true
 }
