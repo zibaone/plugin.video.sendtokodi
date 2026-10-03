@@ -523,3 +523,58 @@ def test_handle_request_returns_when_server_goes_idle(monkeypatch):
     dash_builder._handle_request(DummyHttpd())
 
     assert len(calls) == 3
+
+
+# ---------------------------------------------------------------------------
+# mimeType audio — regression test for "audio/m4a" bug
+# ---------------------------------------------------------------------------
+
+def _make_audio_format(ext, format_id="140-1"):
+    return {
+        "url": "https://example.com/audio",
+        "container": "m4a_dash",
+        "format_id": format_id,
+        "acodec": "mp4a.40.2",
+        "asr": 44100,
+        "ext": ext,
+        "tbr": 128.0,
+        "audio_channels": 2,
+        "language": "fr",
+    }
+
+
+def test_add_audio_format_m4a_produces_valid_mimetype(monkeypatch):
+    """yt-dlp ext='m4a' must map to 'audio/mp4' (ISA rejects 'audio/m4a')."""
+    monkeypatch.setattr(
+        dash_builder.Manifest, "_find_init_and_index_ranges",
+        lambda self, url, container: ((0, 100), (101, 200)),
+    )
+    manifest = dash_builder.Manifest(60)
+    manifest.add_audio_format(_make_audio_format("m4a"))
+    xml = manifest.emit().decode()
+    assert 'mimeType="audio/mp4"' in xml
+    assert 'mimeType="audio/m4a"' not in xml
+
+
+def test_add_audio_format_webm_produces_valid_mimetype(monkeypatch):
+    """yt-dlp ext='webm' must produce 'audio/webm' (already valid)."""
+    monkeypatch.setattr(
+        dash_builder.Manifest, "_find_init_and_index_ranges",
+        lambda self, url, container: ((0, 100), (101, 200)),
+    )
+    manifest = dash_builder.Manifest(60)
+    manifest.add_audio_format(_make_audio_format("webm", format_id="251-1"))
+    xml = manifest.emit().decode()
+    assert 'mimeType="audio/webm"' in xml
+
+
+def test_add_audio_format_unknown_ext_falls_back(monkeypatch):
+    """Unknown ext values pass through unchanged (no crash)."""
+    monkeypatch.setattr(
+        dash_builder.Manifest, "_find_init_and_index_ranges",
+        lambda self, url, container: ((0, 100), (101, 200)),
+    )
+    manifest = dash_builder.Manifest(60)
+    manifest.add_audio_format(_make_audio_format("ogg", format_id="17-1"))
+    xml = manifest.emit().decode()
+    assert 'mimeType="audio/ogg"' in xml
