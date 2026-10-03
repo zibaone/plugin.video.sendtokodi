@@ -14,3 +14,5 @@ venv/
 .coverage
 coverage.xml
 htmlcov/
+# Throwaway Kodi profile (scripts/run_local_kodi.sh)
+.kodi-local/
